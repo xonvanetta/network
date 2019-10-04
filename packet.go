@@ -10,14 +10,6 @@ import (
 	"github.com/golang/protobuf/ptypes/any"
 )
 
-const (
-	Ping uint64 = iota
-	Pong
-	UUID
-	Disconnect
-	Connecting
-)
-
 var (
 	defaultSize = 4096
 )
@@ -28,7 +20,7 @@ func writePacket(writer io.Writer, uuid string, packetType uint64, packet proto.
 		var err error
 		packetAny, err = ptypes.MarshalAny(packet)
 		if err != nil {
-			return fmt.Errorf("failed to marshal any: %s", err)
+			return err
 		}
 	}
 
@@ -55,7 +47,6 @@ func read(reader io.Reader) ([]byte, error) {
 	for {
 		n, err := reader.Read(buf)
 		if err != nil && n == 0 {
-			fmt.Println(err)
 			return nil, err
 		}
 		bytesRead += n
