@@ -1,0 +1,12 @@
+syntax = "proto3";
+import "any.proto";
+
+package packet;
+
+message Packet {
+    //Type
+    uint64 type = 1;
+
+    //Any the inside packet
+    google.protobuf.Any message = 3;
+}
