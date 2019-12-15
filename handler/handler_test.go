@@ -1,11 +1,12 @@
-package connection
+package handler
 
 import (
 	"fmt"
 	"testing"
 
+	"github.com/xonvanetta/network/packet"
+
 	"github.com/stretchr/testify/assert"
-	"github.com/xonvanetta/network"
 )
 
 type counter struct {
@@ -35,14 +36,14 @@ func TestHandlerAddAndDo(t *testing.T) {
 		{
 			name: "Add",
 			add: func(t *testing.T) {
-				Add(network.Connecting, func(event Event) error {
+				Add(packet.Connecting, func(event Event) error {
 					counter.Inc()
-					assert.Equal(t, "uuid", event.UUID())
+					assert.Equal(t, "uuid", UUID())
 					return nil
 				})
 			},
 			do: func(t *testing.T) {
-				err := do(network.Connecting, "uuid", nil)
+				err := Do(packet.Connecting, "uuid", nil)
 				assert.NoError(t, err)
 				counter.Verify(t, 1)
 			},
@@ -50,19 +51,19 @@ func TestHandlerAddAndDo(t *testing.T) {
 		{
 			name: "Multiple adds",
 			add: func(t *testing.T) {
-				Add(network.Connecting, func(event Event) error {
+				Add(packet.Connecting, func(event Event) error {
 					counter.Inc()
-					assert.Equal(t, "uuid", event.UUID())
+					assert.Equal(t, "uuid", UUID())
 					return nil
 				})
-				Add(network.Connecting, func(event Event) error {
+				Add(packet.Connecting, func(event Event) error {
 					counter.Inc()
-					assert.Equal(t, "uuid", event.UUID())
+					assert.Equal(t, "uuid", UUID())
 					return nil
 				})
 			},
 			do: func(t *testing.T) {
-				err := do(network.Connecting, "uuid", nil)
+				err := Do(packet.Connecting, "uuid", nil)
 				assert.NoError(t, err)
 				counter.Verify(t, 2)
 			},
@@ -70,18 +71,18 @@ func TestHandlerAddAndDo(t *testing.T) {
 		{
 			name: "Multiple adds with error",
 			add: func(t *testing.T) {
-				Add(network.Connecting, func(event Event) error {
+				Add(packet.Connecting, func(event Event) error {
 					counter.Inc()
-					assert.Equal(t, "uuid", event.UUID())
+					assert.Equal(t, "uuid", UUID())
 					return nil
 				})
-				Add(network.Connecting, func(event Event) error {
+				Add(packet.Connecting, func(event Event) error {
 					counter.Inc()
 					return fmt.Errorf("boom")
 				})
 			},
 			do: func(t *testing.T) {
-				err := do(network.Connecting, "uuid", nil)
+				err := Do(packet.Connecting, "uuid", nil)
 				assert.Error(t, err)
 				counter.Verify(t, 2)
 			},
@@ -89,18 +90,18 @@ func TestHandlerAddAndDo(t *testing.T) {
 		{
 			name: "Multiple adds with different types",
 			add: func(t *testing.T) {
-				Add(network.Connecting, func(event Event) error {
+				Add(packet.Connecting, func(event Event) error {
 					counter.Inc()
-					assert.Equal(t, "uuid", event.UUID())
+					assert.Equal(t, "uuid", UUID())
 					return nil
 				})
-				Add(network.Ping, func(event Event) error {
+				Add(packet.Ping, func(event Event) error {
 					counter.Inc()
 					return nil
 				})
 			},
 			do: func(t *testing.T) {
-				err := do(network.Connecting, "uuid", nil)
+				err := Do(packet.Connecting, "uuid", nil)
 				assert.NoError(t, err)
 				counter.Verify(t, 1)
 			},
@@ -120,7 +121,7 @@ func TestHandlerAddAndDo(t *testing.T) {
 // 50 - 60 ns
 func BenchmarkAdd(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		Add(network.Ping, func(event Event) error {
+		Add(packet.Ping, func(event Event) error {
 			return nil
 		})
 	}
@@ -128,12 +129,12 @@ func BenchmarkAdd(b *testing.B) {
 
 // 700 - 730 ns
 func BenchmarkDo(b *testing.B) {
-	Add(network.Ping, func(event Event) error {
+	Add(packet.Ping, func(event Event) error {
 		return nil
 	})
 
 	for n := 0; n < b.N; n++ {
-		err := do(network.Ping, "uuid", nil)
+		err := Do(packet.Ping, "uuid", nil)
 		assert.NoError(b, err)
 	}
 }

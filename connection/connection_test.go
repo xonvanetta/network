@@ -4,8 +4,9 @@ import (
 	"net"
 	"testing"
 
+	"github.com/xonvanetta/network/handler"
+
 	"github.com/stretchr/testify/assert"
-	"github.com/xonvanetta/network"
 	"github.com/xonvanetta/network/packet"
 )
 
@@ -22,8 +23,8 @@ import (
 //}
 
 func TestNew(t *testing.T) {
-	counter := &counter{}
-	Add(network.Ping, func(event Event) error {
+	counter := &handler.counter{}
+	handler.Add(packet.Ping, func(event handler.Event) error {
 		counter.Inc()
 		return nil
 	})
@@ -31,7 +32,7 @@ func TestNew(t *testing.T) {
 	conn, server := net.Pipe()
 	conn = New(conn)
 
-	err := packet.Write(server, network.Ping, nil)
+	err := packet.Write(server, packet.Ping, nil)
 	assert.NoError(t, err)
 
 	err = conn.Close()

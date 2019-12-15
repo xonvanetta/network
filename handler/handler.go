@@ -1,4 +1,4 @@
-package connection
+package handler
 
 import (
 	"fmt"
@@ -12,23 +12,18 @@ var (
 	handlers = make(callbacks)
 )
 
-//Todo: own package
-type Event interface {
-	UUID() string
-	Any() *any.Any
-}
+type Callback = func(event Event) error
 
-type HandlerCallback = func(event Event) error
+type callbacks map[uint64][]Callback
 
-type callbacks map[uint64][]HandlerCallback
-
-func Add(packetType uint64, callback HandlerCallback) {
+func Add(packetType uint64, callback Callback) {
 	mutex.Lock()
 	handlers[packetType] = append(handlers[packetType], callback)
+	fmt.Println(handlers)
 	mutex.Unlock()
 }
 
-func do(packetType uint64, uuid string, any *any.Any) error {
+func Do(packetType uint64, uuid string, any *any.Any) error {
 	event := &event{
 		uuid: uuid,
 		any:  any,
@@ -48,17 +43,4 @@ func do(packetType uint64, uuid string, any *any.Any) error {
 	}
 
 	return nil
-}
-
-type event struct {
-	uuid string
-	any  *any.Any
-}
-
-func (e event) UUID() string {
-	return e.uuid
-}
-
-func (e event) Any() *any.Any {
-	return e.any
 }

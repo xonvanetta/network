@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/xonvanetta/network/handler"
+
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/xonvanetta/network/packet"
@@ -37,6 +39,10 @@ func New(conn net.Conn) *connection {
 		connection.wg.Done()
 	}()
 
+	err := handler.Do(packet.Connecting, connection.uuid, nil)
+	if err != nil {
+		logrus.Errorf("failed to do packet connecting for %s: %s", connection.uuid, err)
+	}
 	return connection
 }
 
@@ -45,7 +51,11 @@ func (c *connection) UUID() string {
 }
 
 func (c *connection) Close() error {
-	err := c.Conn.Close()
+	err := handler.Do(packet.Disconnect, c.uuid, nil)
+	if err != nil {
+		return fmt.Errorf("failed to disconnect: %s", err)
+	}
+	err = c.Conn.Close()
 	c.wg.Wait()
 	return err
 }
@@ -55,6 +65,7 @@ func (c *connection) read() {
 		pk, err := packet.Read(c)
 		if err != nil {
 			if err == io.EOF || err == io.ErrClosedPipe {
+				c.Close()
 				return
 			}
 			c.error(err)
@@ -62,9 +73,9 @@ func (c *connection) read() {
 		}
 
 		//Todo: do some real deadline setter
-		fmt.Println(c.uuid, pk.GetType(), pk.GetMessage())
+		//fmt.Println(c.uuid, pk.GetType(), pk.GetMessage())
 
-		err = do(pk.GetType(), c.uuid, pk.GetMessage())
+		err = handler.Do(pk.GetType(), c.uuid, pk.GetMessage())
 		if err != nil {
 			logrus.Errorf("network: failed to do something: %s", err)
 		}

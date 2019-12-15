@@ -1,4 +1,4 @@
-package network
+package packet
 
 const (
 	Ping uint64 = iota

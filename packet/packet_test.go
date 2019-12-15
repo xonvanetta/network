@@ -6,51 +6,87 @@ import (
 	"testing"
 	"testing/iotest"
 
+	"golang.org/x/net/nettest"
+
 	"github.com/stretchr/testify/assert"
-	"github.com/xonvanetta/network"
 )
 
 func TestRead(t *testing.T) {
-	reader := bytes.NewBuffer(nil)
+	reader := New(bytes.NewBuffer(nil))
 
-	err := Write(reader, network.Connecting, nil)
+	err := reader.WritePacket(Connecting, nil)
 	assert.NoError(t, err)
 
-	packet, err := Read(reader)
+	packet, err := reader.ReadPacket()
 	assert.NoError(t, err)
-	assert.Equal(t, network.Connecting, packet.GetType())
+	assert.Equal(t, Connecting, packet.GetType())
 }
 
 func TestReadOneByeReaderErrReader(t *testing.T) {
-	reader := bytes.NewBuffer(nil)
+	writer := bytes.NewBuffer(nil)
 
-	err := Write(reader, network.Connecting, nil)
+	reader := NewReadWriter(writer, iotest.DataErrReader(iotest.OneByteReader(writer)))
+
+	err := reader.WritePacket(Connecting, nil)
 	assert.NoError(t, err)
 
-	packet, err := Read(iotest.DataErrReader(iotest.OneByteReader(reader)))
+	packet, err := reader.ReadPacket()
 	assert.NoError(t, err)
-	assert.Equal(t, network.Connecting, packet.GetType())
+	assert.Equal(t, Connecting, packet.GetType())
 }
 
-func TestReadTwoPackets(t *testing.T) {
-	server, client := net.Pipe()
-
+func TestWriteTwoPackets(t *testing.T) {
+	readWriter := NewReadWriter(net.Pipe())
 	done := make(chan struct{})
 	go func() {
-		packet, err := Read(client)
+		err := readWriter.WritePacket(Connecting, nil)
 		assert.NoError(t, err)
-		assert.Equal(t, network.Connecting, packet.GetType())
-		packet, err = Read(client)
+		err = readWriter.WritePacket(Connecting, nil)
 		assert.NoError(t, err)
-		assert.Equal(t, network.Connecting, packet.GetType())
 		close(done)
 	}()
 
-	err := Write(server, network.Connecting, nil)
+	packet, err := readWriter.ReadPacket()
 	assert.NoError(t, err)
-	err = Write(server, network.Connecting, nil)
+	assert.Equal(t, Connecting, packet.GetType())
+	packet, err = readWriter.ReadPacket()
 	assert.NoError(t, err)
+	assert.Equal(t, Connecting, packet.GetType())
 	<-done
+
+}
+
+func TestSendTwoPacketsThenRead(t *testing.T) {
+	listener, err := nettest.NewLocalListener("tcp")
+	assert.NoError(t, err)
+
+	setup := make(chan struct{})
+	var client net.Conn
+	go func() {
+		client, err = net.Dial("tcp", listener.Addr().String())
+		assert.NoError(t, err)
+		close(setup)
+	}()
+	server, err := listener.Accept()
+	assert.NoError(t, err)
+	<-setup
+
+	readWriter := NewReadWriter(server, client)
+
+	done := make(chan struct{})
+	go func() {
+		err := readWriter.WritePacket(Connecting, nil)
+		assert.NoError(t, err)
+		err = readWriter.WritePacket(Connecting, nil)
+		assert.NoError(t, err)
+		close(done)
+	}()
+
+	<-done
+
+	packet, err := readWriter.ReadPacket()
+	assert.NoError(t, err)
+	assert.Equal(t, Connecting, packet.GetType())
 }
 
 type reusableReader struct {
@@ -69,13 +105,13 @@ func (r *reusableReader) Write(p []byte) (int, error) {
 // 7100 ns - 7500 ns
 // 1750 ns - 1850 ns
 func BenchmarkPacketRead(b *testing.B) {
-	reader := &reusableReader{}
+	readWriter := New(&reusableReader{})
 
-	err := Write(reader, network.Connecting, nil)
+	err := readWriter.WritePacket(Connecting, nil)
 	assert.NoError(b, err)
 
 	for n := 0; n < b.N; n++ {
-		_, err := Read(reader)
+		_, err := readWriter.ReadPacket()
 		assert.NoError(b, err)
 	}
 }
