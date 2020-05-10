@@ -1,5 +1,6 @@
 syntax = "proto3";
 import "any.proto";
+option go_package = "github.com/xonvanetta/network/connection/packet";
 
 package packet;
 
@@ -8,5 +9,5 @@ message Packet {
     uint64 type = 1;
 
     //Any the inside packet
-    google.protobuf.Any message = 3;
+    google.protobuf.Any message = 2;
 }

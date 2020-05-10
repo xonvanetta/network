@@ -9,14 +9,6 @@ import (
 func TestPool(t *testing.T) {
 	pool := NewPool().(*pool)
 
-	//file, err := ioutil.TempFile("", "")
-	//assert.NoError(t, err)
-	//defer file.Close()
-	//
-	//conn, err := net.FileConn(file)
-	//assert.NoError(t, err)
-	//defer conn.Close()
-
 	pool.Add("f09df0aa-8360-4b96-8041-bb93026ac8a0", nil)
 	pool.Add("9e6f7105-9f21-4d16-ba56-a3aee8180163", nil)
 
@@ -31,5 +23,6 @@ func TestPool(t *testing.T) {
 
 	assert.Len(t, conns, 2)
 	assert.Len(t, pool.connections, 1)
-	assert.Contains(t, pool.connections, "f09df0aa-8360-4b96-8041-bb93026ac8a0")
+	conn := pool.Get("f09df0aa-8360-4b96-8041-bb93026ac8a0")
+	assert.NotNil(t, conn)
 }

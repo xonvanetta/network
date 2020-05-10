@@ -8,3 +8,11 @@ Using protobuf to wire the message, and using a int64 to define what type of eve
 
 * protobuf
 * Event Handler based on PacketType
+
+
+## Todo
+
+* correct import of connection/packet/any.proto
+* connection/handler.go set correct timeout handler
+* better error handling in connection/handler.go
+* better error handling in server/server.go

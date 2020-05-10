@@ -5,50 +5,44 @@ import (
 	"net"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/xonvanetta/network/connection/event"
+
+	"github.com/golang/protobuf/proto"
 	"github.com/xonvanetta/network/connection"
-	"github.com/xonvanetta/network/handler"
-	"github.com/xonvanetta/network/packet"
 )
 
 type Client interface {
 	Send(packetType uint64, packet proto.Message) error
 	Connect(addr string) error
 	Disconnect() error
-	UUID() string
 }
 
 //each second check latency
 
 type client struct {
+	conn connection.Handler
+
+	events event.Handler
+
 	latency time.Duration
-	conn    net.Conn
-	uuid    string
 }
 
-func New() Client {
-	client := &client{}
+func New(events event.Handler) Client {
+	client := &client{
+		events: events,
+	}
 	//Todo: ping handler
 
 	return client
 }
 
-func (c *client) setup() {
-	handler.Add(packet.Ping, c.ping)
-}
-
-func (c *client) ping(event handler.Event) error {
-	return nil
-}
-
-//func (c *client) setUUID(packet *pb.Packet) error {
-//	c.uuid = packet.GetUUID()
+//func (c *client) setup() {
+//	handler.Add(packet.Ping, c.ping)
+//}
+//
+//func (c *client) ping(event event.Event) error {
 //	return nil
 //}
-
-func (c *client) UUID() string {
-	return c.uuid
-}
 
 //func (c *client) Handle(packetType uint64, handlerFunc Callback) {
 //	if handlerFunc == nil {
@@ -58,14 +52,15 @@ func (c *client) UUID() string {
 //}
 
 func (c *client) Connect(addr string) error {
-	var err error
-	c.conn, err = net.Dial("tcp", addr)
+	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("framework: failed to connect: %s", err)
+		return fmt.Errorf("client: failed to connect: %w", err)
 	}
 
-	connection.New(c.conn)
-
+	c.conn, err = connection.New(conn, c.events)
+	if err != nil {
+		return fmt.Errorf("client: failed to create new conneciton: %w", err)
+	}
 	return nil
 }
 
@@ -77,10 +72,9 @@ func (c *client) Latency() time.Duration {
 	return c.latency
 }
 
-//check if there is any diff in state then update?
 func (c *client) Send(packetType uint64, any proto.Message) error {
 	if c.conn == nil {
-		return fmt.Errorf("framework: client not connected")
+		return fmt.Errorf("client: not connected")
 	}
-	return packet.Write(c.conn, packetType, any)
+	return c.conn.Write(packetType, any)
 }

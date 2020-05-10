@@ -3,14 +3,12 @@ package server
 import (
 	"fmt"
 	"net"
-	"time"
+	"strings"
 
-	"github.com/xonvanetta/network/handler"
-
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus"
 	"github.com/xonvanetta/network/connection"
-	"github.com/xonvanetta/network/packet"
+	"github.com/xonvanetta/network/connection/event"
 )
 
 type Server interface {
@@ -20,12 +18,14 @@ type Server interface {
 }
 
 type server struct {
-	pool Pool
+	pool   Pool
+	events event.Handler
 }
 
-func New() Server {
+func New(events event.Handler) Server {
 	server := &server{
-		pool: NewPool(),
+		pool:   NewPool(),
+		events: events,
 	}
 
 	//go func() {
@@ -43,60 +43,70 @@ func New() Server {
 }
 
 func (s *server) setup() {
-	//handler.Add(network.Pong, s.pong)
-	//handler.Add(network.Disconnect, s.disconnect)
+	s.events.Add(connection.Disconnecting, func(event event.Event) error {
+		s.pool.Remove(event.UUID())
+		return nil
+	})
 }
 
-func (s *server) pong(event handler.Event) error {
-	conn := s.pool.Get(event.UUID())
-	fmt.Println(conn.SetDeadline(time.Now()))
-	//todo: set lastPong on conn
-	return nil
-}
-
-func (s *server) pingConnections() error {
-	for uuid, conn := range s.pool.All() {
-		err := packet.Write(conn, packet.Ping, nil)
-		//Todo: handle disconnects
-		if err != nil {
-			return fmt.Errorf("framework: failed to ping: %s %s", uuid, err)
-		}
-	}
-
-	return nil
-}
+//func (s *server) pong(event event.Event) error {
+//	conn := s.pool.Get(event.UUID())
+//	fmt.Println(conn.SetDeadline(time.Now()))
+//	//todo: set lastPong on conn
+//	return nil
+//}
+//
+//func (s *server) pingConnections() error {
+//	for uuid, conn := range s.pool.All() {
+//		err := conn.Write(packet.Ping, nil)
+//		//Todo: handle disconnects
+//		if err != nil {
+//			return fmt.Errorf("framework: failed to ping: %s %s", uuid, err)
+//		}
+//	}
+//
+//	return nil
+//}
 
 func (s *server) Send(uuid string, packetType uint64, any proto.Message) error {
 	conn := s.pool.Get(uuid)
 	if conn == nil {
-		return fmt.Errorf("framework: connection not found: %s", uuid)
+		return fmt.Errorf("server: connection not found: %s", uuid)
 	}
 
-	return packet.Write(conn, packetType, any)
+	return conn.Write(packetType, any)
 }
 
 func (s *server) SendAll(packetType uint64, any proto.Message) error {
 	for _, conn := range s.pool.All() {
-		err := packet.Write(conn, packetType, any)
+		err := conn.Write(packetType, any)
 		if err != nil {
-			return fmt.Errorf("framework: failed to write packet: %s", err)
+			return fmt.Errorf("server: failed to write packet: %w", err)
 		}
 	}
 	return nil
 }
 
 func (s *server) Start(listener net.Listener) {
-	logrus.Infof("started server on %s", listener.Addr())
+	logrus.Infof("server: started server on %s", listener.Addr())
 	for {
 		conn, err := listener.Accept()
-		//Todo: handle error better. ie net op error
+		if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
+			return
+		}
+
 		if err != nil {
-			logrus.Printf("network: failed to accept tcp :%s\n", err)
+			logrus.Printf("server: failed to accept tcp :%s\n", err)
 			return
 		}
 
 		go func(c net.Conn) {
-			conn := connection.New(c)
+			conn, err := connection.New(c, s.events)
+			if err != nil {
+				logrus.Errorf("server: failed to create new connection :%s", err)
+
+				return
+			}
 			s.pool.Add(conn.UUID(), conn)
 		}(conn)
 	}

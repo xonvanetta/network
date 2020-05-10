@@ -1,37 +1,38 @@
 package server
 
 import (
-	"net"
 	"sync"
+
+	"github.com/xonvanetta/network/connection"
 )
 
 type Pool interface {
-	Add(uuid string, conn net.Conn)
-	All() map[string]net.Conn
-	Get(uuid string) net.Conn
+	Add(uuid string, conn connection.Handler)
+	All() map[string]connection.Handler
+	Get(uuid string) connection.Handler
 	Remove(uuid string)
 }
 
 type pool struct {
 	//total       int
-	connections map[string]net.Conn
+	connections map[string]connection.Handler
 	mutex       *sync.RWMutex
 }
 
 func NewPool() Pool {
 	return &pool{
-		connections: make(map[string]net.Conn),
+		connections: make(map[string]connection.Handler),
 		mutex:       &sync.RWMutex{},
 	}
 }
 
-func (p *pool) Add(uuid string, conn net.Conn) {
+func (p *pool) Add(uuid string, conn connection.Handler) {
 	p.mutex.Lock()
 	p.connections[uuid] = conn
 	p.mutex.Unlock()
 }
 
-func (p *pool) Get(uuid string) net.Conn {
+func (p *pool) Get(uuid string) connection.Handler {
 	p.mutex.RLock()
 	defer p.mutex.RUnlock()
 	return p.connections[uuid]
@@ -47,11 +48,11 @@ func (p *pool) Remove(uuid string) {
 	delete(p.connections, uuid)
 }
 
-func (p *pool) All() map[string]net.Conn {
+func (p *pool) All() map[string]connection.Handler {
 	p.mutex.RLock()
-	m := make(map[string]net.Conn)
-	for uid, conn := range p.connections {
-		m[uid] = conn
+	m := make(map[string]connection.Handler)
+	for uuid, conn := range p.connections {
+		m[uuid] = conn
 	}
 	p.mutex.RUnlock()
 	return m
